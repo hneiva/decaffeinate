@@ -51,7 +51,7 @@ describe('decaffeinate CLI', () => {
   it('respects the --literate flag', () => {
     runCli('--literate', `
       This is a literate file.
-      
+
           literate = true
     `, `
       // This is a literate file.
@@ -326,14 +326,14 @@ describe('decaffeinate CLI', () => {
           super
     `, `
       stdin: Cannot automatically convert a subclass with a constructor that uses \`this\` before \`super\`.
-  
+
       JavaScript requires all subclass constructors to call \`super\` and to do so
       before the first use of \`this\`, so the following cases cannot be converted
       automatically:
       * Constructors in subclasses that use \`this\` before \`super\`.
       * Constructors in subclasses that omit the \`super\` call.
       * Subclasses that use \`=>\` method syntax to automatically bind methods.
-      
+
       To convert these cases to JavaScript anyway, remove the option
       --disallow-invalid-constructors when running decaffeinate.
         1 | class A extends B
@@ -365,15 +365,17 @@ describe('decaffeinate CLI', () => {
     `);
   });
 
-  it('discovers and converts CoffeeScript files when prompted', () => {
+  it('discovers and converts CoffeeScript files when prompted (including subdirectories)', () => {
     runCli('./test_fixtures', '', `
       test_fixtures/A.coffee → test_fixtures/A.js
       test_fixtures/B.coffee.md → test_fixtures/B.js
       test_fixtures/C.litcoffee → test_fixtures/C.js
+      test_fixtures/subdirFixtures/G.coffee → test_fixtures/subdirFixtures/G.js
     `);
     ok(existsSync('test_fixtures/A.js'));
     ok(existsSync('test_fixtures/B.js'));
     ok(existsSync('test_fixtures/C.js'));
+    ok(existsSync('test_fixtures/subdirFixtures/G.js'));
   });
 
   it('properly converts an unrecognized extension', () => {

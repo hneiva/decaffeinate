@@ -157,23 +157,32 @@ function runWithPaths(paths: Array<string>, options: CLIOptions, callback: ((err
 
   function processDirectory(path: string): void {
     readdir(path, (err, children) => {
-      if (err) { errors.push(err); }
-      else {
-        pending.unshift(
-          ...children
-            .filter(child => {
-              if (options.modernizeJS) {
-                return child.endsWith('.js');
-              } else {
-                return child.endsWith('.coffee') ||
-                  child.endsWith('.litcoffee') ||
-                  child.endsWith('.coffee.md');
-              }
-            })
-            .map(child => join(path, child))
-        );
+      if (err) {
+        errors.push(err);
+        return;
       }
-      processNext();
+      children.forEach((child, index) => {
+        stat(join(path, child), (err, info) => {
+          if (err) {
+            errors.push(err);
+            return;
+          }
+
+          if (
+            info.isDirectory() ||
+            (options.modernizeJS && child.endsWith('.js')) ||
+            // Extensions .coffee || .litcoffee || .coffee.md
+            /\.(lit)?coffee(\.md)?$/.test(child)
+          ) {
+            pending.push(join(path, child));
+          }
+
+          // On last run, process next
+          if (children.length === index + 1) {
+            processNext();
+          }
+        });
+      });
     });
   }
 
