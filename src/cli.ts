@@ -144,6 +144,21 @@ function runWithPaths(paths: Array<string>, options: CLIOptions, callback: ((err
   let errors: Array<Error> = [];
   let pending = paths.slice();
 
+  const ignoredRegexes = [
+      /.gitignore$/i,          // any .gitignore file
+      /(^|\/)node_modules\//g, // node_modules folder
+      /(^|\/)\.\w+$/           // any files starting with `.`
+  ];
+
+  function shouldSkipPath(path: string): boolean {
+    for (let p of ignoredRegexes) {
+        if (p.test(path)) {
+            return true;
+        }
+    }
+    return false;
+  }
+
   function processPath(path: string): void {
     stat(path, (err, info) => {
       if (err) { errors.push(err); }
@@ -161,35 +176,21 @@ function runWithPaths(paths: Array<string>, options: CLIOptions, callback: ((err
         errors.push(err);
         return;
       }
-      children.forEach((child, index) => {
-        stat(join(path, child), (err, info) => {
-          if (err) {
-            errors.push(err);
-            return;
-          }
-
-          if (
-            info.isDirectory() ||
-            (options.modernizeJS && child.endsWith('.js')) ||
-            // Extensions .coffee || .litcoffee || .coffee.md
-            /\.(lit)?coffee(\.md)?$/.test(child)
-          ) {
-            pending.push(join(path, child));
-          }
-
-          // On last run, process next
-          if (children.length === index + 1) {
-            processNext();
-          }
-        });
-      });
+      children.forEach((child) => pending.push(join(path, child)));
+      processNext();
     });
   }
 
   function processFile(path: string): void {
+    if (path.endsWith('.js') && !options.modernizeJS) {
+        return processNext();
+    }
+
     let extension = path.endsWith('.coffee.md') ? '.coffee.md' : extname(path);
     let outputPath = join(dirname(path), basename(path, extension)) + '.js';
+
     console.log(`${path} → ${outputPath}`);
+
     readFile(path, 'utf8', (err, data) => {
       if (err) {
         errors.push(err);
@@ -204,16 +205,33 @@ function runWithPaths(paths: Array<string>, options: CLIOptions, callback: ((err
     });
   }
 
+  /**
+   * 2 paths this could go down when reading next pending path:
+   * - it's a file
+   *   -> processes file
+   *   -> calls processNext *after* processing given file
+   *        (synchronous for now, but we could do the actual processing async in the future)
+   * - it's a directory
+   *   -> read directory
+   *   -> add all children (and subdirs) to pending
+   *   -> call processNext
+   * rinse and repeat
+   */
   function processNext(): void {
-    if (pending.length > 0) {
-      let nextPath = pending.shift();
-      if (!nextPath) {
-        throw new Error('Expected a next path.');
-      }
-      processPath(nextPath);
-    } else if (callback) {
-      callback(errors);
+    if (pending.length < 1) {
+        return callback ? callback(errors) : undefined;
     }
+
+    let nextPath = pending.shift();
+    if (!nextPath) {
+      throw new Error('Expected a next path.');
+    }
+
+    if (shouldSkipPath(nextPath)) {
+      return processNext();
+    }
+
+    processPath(nextPath);
   }
 
   processNext();
