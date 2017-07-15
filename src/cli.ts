@@ -1,9 +1,9 @@
 /* eslint-disable no-process-exit */
 
-import { readdir, readFile, stat, writeFile } from 'fs';
-import { basename, dirname, extname, join } from 'path';
-import { convert, modernizeJS } from './index';
-import { Options } from './options';
+import {readdir, readFile, stat, writeFile} from 'fs';
+import {basename, dirname, extname, join} from 'path';
+import {convert, modernizeJS} from './index';
+import {Options} from './options';
 import PatchError from './utils/PatchError';
 
 /**
@@ -144,48 +144,61 @@ function runWithPaths(paths: Array<string>, options: CLIOptions, callback: ((err
   let errors: Array<Error> = [];
   let pending = paths.slice();
 
-  const ignoredRegexes = [
-      /.gitignore$/i,          // any .gitignore file
-      /(^|\/)node_modules\//g, // node_modules folder
-      /(^|\/)\.\w+$/           // any files starting with `.`
-  ];
-
-  function shouldSkipPath(path: string): boolean {
-    for (let p of ignoredRegexes) {
-        if (p.test(path)) {
-            return true;
-        }
-    }
-    return false;
-  }
-
   function processPath(path: string): void {
     stat(path, (err, info) => {
-      if (err) { errors.push(err); }
+      if (err) {
+        errors.push(err);
+      }
       else if (info.isDirectory()) {
-        processDirectory(path);
+        processDirectory(path)
+          .then(processNext);
       } else {
         processFile(path);
       }
     });
   }
 
-  function processDirectory(path: string): void {
-    readdir(path, (err, children) => {
-      if (err) {
-        errors.push(err);
-        return;
-      }
-      children.forEach((child) => pending.push(join(path, child)));
-      processNext();
+  function processDirectoryChildren(children: Array<string>, path: string): Promise<void> {
+    return new Promise(resolve => {
+      children.forEach((child, index) => {
+        const child_path = join(path, child);
+        stat(child_path, async (err, info) => {
+          if (err) {
+            errors.push(err);
+            return;
+          }
+
+          if (info.isDirectory()) {
+            await processDirectory(child_path);
+            return;
+          }
+
+          if (/\.(lit)?coffee(\.md)?$/.test(child)) {
+            pending.push(child_path);
+          }
+
+          if (children.length === index + 1) {
+            resolve();
+          }
+        });
+      });
+    });
+  }
+
+  function processDirectory(path: string): Promise<void> {
+    return new Promise(resolve => {
+      readdir(path, (err, children) => {
+        if (err) {
+          errors.push(err);
+          return;
+        }
+        processDirectoryChildren(children, path)
+          .then(resolve);
+      });
     });
   }
 
   function processFile(path: string): void {
-    if (path.endsWith('.js') && !options.modernizeJS) {
-        return processNext();
-    }
-
     let extension = path.endsWith('.coffee.md') ? '.coffee.md' : extname(path);
     let outputPath = join(dirname(path), basename(path, extension)) + '.js';
 
@@ -205,30 +218,17 @@ function runWithPaths(paths: Array<string>, options: CLIOptions, callback: ((err
     });
   }
 
-  /**
-   * 2 paths this could go down when reading next pending path:
-   * - it's a file
-   *   -> processes file
-   *   -> calls processNext *after* processing given file
-   *        (synchronous for now, but we could do the actual processing async in the future)
-   * - it's a directory
-   *   -> read directory
-   *   -> add all children (and subdirs) to pending
-   *   -> call processNext
-   * rinse and repeat
-   */
   function processNext(): void {
     if (pending.length < 1) {
-        return callback ? callback(errors) : undefined;
+      if (callback) {
+        callback(errors);
+      }
+      return;
     }
 
     let nextPath = pending.shift();
     if (!nextPath) {
       throw new Error('Expected a next path.');
-    }
-
-    if (shouldSkipPath(nextPath)) {
-      return processNext();
     }
 
     processPath(nextPath);

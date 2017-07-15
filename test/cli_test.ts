@@ -370,16 +370,12 @@ describe('decaffeinate CLI', () => {
       test_fixtures/A.coffee → test_fixtures/A.js
       test_fixtures/B.coffee.md → test_fixtures/B.js
       test_fixtures/C.litcoffee → test_fixtures/C.js
-      test_fixtures/D.cjsx → test_fixtures/D.js
-      test_fixtures/E → test_fixtures/E.js
       test_fixtures/subdirFixtures/G.coffee → test_fixtures/subdirFixtures/G.js
     `);
     const output_paths = [
         'test_fixtures/A.js',
         'test_fixtures/B.js',
         'test_fixtures/C.js',
-        'test_fixtures/D.js',
-        'test_fixtures/E.js',
         'test_fixtures/subdirFixtures/G.js',
     ];
 
