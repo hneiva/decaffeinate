@@ -1,6 +1,6 @@
 /* eslint-disable no-process-exit */
 
-import {readdir, readFile, stat, writeFile} from 'fs';
+import {readdir, readFile, stat, writeFile} from 'mz/fs';
 import {basename, dirname, extname, join} from 'path';
 import {convert, modernizeJS} from './index';
 import {Options} from './options';
@@ -144,58 +144,46 @@ function runWithPaths(paths: Array<string>, options: CLIOptions, callback: ((err
   let errors: Array<Error> = [];
   let pending = paths.slice();
 
-  function processPath(path: string): void {
-    stat(path, (err, info) => {
-      if (err) {
-        errors.push(err);
-      }
-      else if (info.isDirectory()) {
-        processDirectory(path)
-          .then(processNext);
-      } else {
-        processFile(path);
-      }
-    });
+  async function processPath(path: string): Promise<void> {
+    const info = await stat(path);
+
+    if (!info) {
+      // Skip
+      return processNext();
+    }
+
+    if (info.isDirectory()) {
+      return processDirectory(path)
+        .then(processNext);
+    }
+
+    processFile(path);
   }
 
-  function processDirectoryChildren(children: Array<string>, path: string): Promise<void> {
-    return new Promise(resolve => {
-      children.forEach((child, index) => {
-        const child_path = join(path, child);
-        stat(child_path, async (err, info) => {
-          if (err) {
-            errors.push(err);
-            return;
-          }
+  async function processDirectoryChildren(children: Array<string>, path: string): Promise<void> {
+    for (let child of children) {
+      const child_path = join(path, child);
 
-          if (info.isDirectory()) {
-            await processDirectory(child_path);
-            return;
-          }
+      const info = await stat(child_path);
+      if (!info) {
+        return;
+      }
 
-          if (/\.(lit)?coffee(\.md)?$/.test(child)) {
-            pending.push(child_path);
-          }
-
-          if (children.length === index + 1) {
-            resolve();
-          }
-        });
-      });
-    });
+      if (info.isDirectory()) {
+        await processDirectory(child_path);
+      }
+      if (/\.(lit)?coffee(\.md)?$/.test(child)) {
+        pending.push(child_path);
+      }
+    }
   }
 
   function processDirectory(path: string): Promise<void> {
-    return new Promise(resolve => {
-      readdir(path, (err, children) => {
-        if (err) {
-          errors.push(err);
-          return;
-        }
-        processDirectoryChildren(children, path)
-          .then(resolve);
+    return readdir(path)
+      .then(children => processDirectoryChildren(children, path))
+      .catch(err => {
+        errors.push(err);
       });
-    });
   }
 
   function processFile(path: string): void {
