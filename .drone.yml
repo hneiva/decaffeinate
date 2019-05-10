@@ -2,8 +2,12 @@ kind: pipeline
 name: test
 
 steps:
-- name: Prereq
+- name: Install
   image: node
   commands:
   - npm install
+
+- name: Test
+  image: node
+  commands:
   - npm test
