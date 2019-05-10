@@ -1,0 +1,9 @@
+kind: pipeline
+name: test
+
+steps:
+- name: Prereq
+  image: node
+  commands:
+  - npm install
+  - npm test
