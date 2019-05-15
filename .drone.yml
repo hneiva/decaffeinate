@@ -7,12 +7,12 @@ steps:
   commands:
   - npm install
 
-- name: Test
-  image: node
-  commands:
-  - npm test
-
 - name: Something else
   image: node
   commands:
     - ls
+
+- name: Test
+  image: node
+  commands:
+  - npm test
