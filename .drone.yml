@@ -11,3 +11,8 @@ steps:
   image: node
   commands:
   - npm test
+
+- name: Something else
+  image: node
+  commands:
+    - ls
